@@ -1,30 +1,68 @@
-    async function update() {
-      const r = await fetch('/climate/termostat_salon');
-      const d = await r.json();
+let appInitialized = false;
 
-      document.body.innerHTML = `
-        <h1>Termostat</h1>
-        <h2>${d.current_temperature} °C</h2>
-        <h3>SET: ${d.target_temperature}</h3>
-        <button onclick="setTemp(-0.5)">-</button>
-        <button onclick="setTemp(0.5)">+</button>
-      `;
-    }
+function createUI() {
+  if (appInitialized) return;
 
-    async function setTemp(delta) {
-      const r = await fetch('/climate/termostat_salon');
-      const d = await r.json();
+  const container = document.createElement("div");
+  container.id = "custom-thermostat";
+  container.style.margin = "20px";
+  container.style.padding = "20px";
+  container.style.background = "#222";
+  container.style.borderRadius = "15px";
+  container.style.textAlign = "center";
+  container.style.color = "#fff";
 
-      await fetch('/climate/termostat_salon/set', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          target_temperature: d.target_temperature + delta
-        })
-      });
+  container.innerHTML = `
+    <h1>Termostat</h1>
+    <h2 id="temp">--</h2>
+    <h3 id="target">--</h3>
+    <button onclick="setTemp(-0.5)">-</button>
+    <button onclick="setTemp(0.5)">+</button>
+  `;
 
-      update();
-    }
+  document.body.appendChild(container);
+  appInitialized = true;
+}
 
-    setInterval(update, 2000);
+async function update() {
+  try {
+    const r = await fetch('/climate/termostat_salon');
+    const d = await r.json();
+
+    document.getElementById('temp').innerText =
+      d.current_temperature.toFixed(1) + " °C";
+
+    document.getElementById('target').innerText =
+      "SET: " + d.target_temperature.toFixed(1);
+  } catch (e) {
+    console.log("API error:", e);
+  }
+}
+
+async function setTemp(delta) {
+  try {
+    const r = await fetch('/climate/termostat_salon');
+    const d = await r.json();
+
+    await fetch('/climate/termostat_salon/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_temperature: d.target_temperature + delta
+      })
+    });
+
     update();
+  } catch (e) {
+    console.log("SET error:", e);
+  }
+}
+
+// 🔥 najważniejsze – czekamy aż ESPHome UI się załaduje
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    createUI();
+    update();
+    setInterval(update, 3000);
+  }, 1000); // opóźnienie żeby nie walczyć z UI ESPHome
+});
